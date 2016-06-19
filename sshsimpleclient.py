@@ -23,8 +23,8 @@ $ ckeygen -t rsa -f ssh-keys/client_rsa
 # Default username and password will match the sshsimpleserver.py
 USER = 'user'
 HOST = 'localhost'
-PORT = 5022
-SERVER_FINGERPRINT = 'pu:t:se:rv:er:fi:ng:er:pr:in:t:he:re'
+PORT = 5080
+SERVER_FINGERPRINT = '2c:fa:70:e0:d6:ea:25:9e:bf:1a:e2:91:c6:2b:5d:92'
 
 # Path to RSA SSH keys accepted by the server.
 CLIENT_RSA_PUBLIC = 'ssh-keys/client_rsa.pub'
@@ -50,7 +50,7 @@ class SimpleTransport(transport.SSHClientTransport):
 class SimpleUserAuth(userauth.SSHUserAuthClient):
 
     def getPassword(self):
-        return defer.succeed(getpass.getpass("%s@%s's password: " % (USER, HOST)))
+        return defer.succeed('password')#defer.succeed(getpass.getpass("%s@%s's password: " % (USER, HOST)))
 
     def getGenericAnswers(self, name, instruction, questions):
         print name

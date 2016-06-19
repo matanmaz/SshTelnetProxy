@@ -14,6 +14,10 @@ from twisted.internet import reactor, protocol
 from twisted.python import log
 from twisted.python import components
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
+from twisted.web.client import Agent
+from twisted.web.http_headers import Headers
+from twisted.internet import defer
+from twisted.internet.endpoints import _WrappingFactory
 from zope.interface import implements
 import telnetlib
 import sys
@@ -124,12 +128,12 @@ class ExampleRealm(object):
         return interfaces[0], ExampleAvatar(avatarId), lambda: None
 
 
-
 class FzSsh2TelnetProtocol(protocol.Protocol):
 	"""
+	Passes on the SSH data to a telnet server through simple TCP
 	"""
 	def connectionMade(self):
-		self.point = TCP4ClientEndpoint(reactor, "192.168.198.1", 23)
+		self.point = TCP4ClientEndpoint(reactor, "127.0.0.1", 5080)
 		self.telnetSide = FzTelnetClient()
 		self.telnetSide.sshSide = self
 		connectProtocol(self.point, self.telnetSide)
@@ -153,7 +157,8 @@ class FzSsh2TelnetProtocol(protocol.Protocol):
 
 	def sendMessage(self, msg):
 		self.transport.write(msg)
-
+		
+		
 class FzTelnetClient(protocol.Protocol):
 	def connectionMade(self):
 		self._init = True
@@ -174,6 +179,114 @@ class FzTelnetClient(protocol.Protocol):
 	def loseConnection(self, reason):
 		self.transport.loseConnection()
 
+		
+class FzSsh2HTTPProtocol(protocol.Protocol):
+	"""
+	"""
+	def connectionMade(self):
+		self.point = HTTPClientEndpoint(reactor, "127.0.0.1", 5080)
+		self.httpSide = FzHTTPClient()
+		self.httpSide.sshSide = self
+		connectProtocol(self.point, self.httpSide)
+
+	def connectionLost(self, reason):
+		self.httpSide.loseConnection(reason)
+		
+	def dataReceived(self, data):
+		"""
+		Called when client send data over the shell session.
+
+		Just echo the received data and and if Ctrl+C is received, close the
+		session.
+		"""
+		if data == '\r':
+			data = '\r\n'
+		elif data == '\x03': #^C
+			self.transport.loseConnection()
+			return
+		
+		self.httpSide.sendMessage(data)
+
+	def sendMessage(self, msg):
+		self.transport.write(msg)
+		
+		
+class FzTClient(protocol.Protocol):
+	def connectionMade(self):
+		self._init = True
+	def sendMessage(self, msg):
+		agent = Agent(reactor)
+		agent.request('GET', 'http://127.0.0.1:5080/', Headers({'User-Agent': ['Twisted Web Client Example']}), None)
+		#self.transport.request(msg)
+
+	def dataReceived(self, data):
+		self.sshSide.sendMessage(data)
+		
+	def loseConnection(self, reason):
+		self.transport.loseConnection()
+
+class FzSsh2TCPProtocol(protocol.Protocol):
+	"""
+	"""
+	def connectionMade(self):
+		self.point = TCP4ClientEndpoint(reactor, "127.0.0.1", 5080)
+		self.tcpSide = FzTCPClient()
+		self.tcpSide.sshSide = self
+		connectProtocol(self.point, self.tcpSide)
+
+	def connectionLost(self, reason):
+		self.tcpSide.loseConnection(reason)
+		
+	def dataReceived(self, data):
+		"""
+		Called when client send data over the shell session.
+
+		Just echo the received data and and if Ctrl+C is received, close the
+		session.
+		"""
+		if data == '\r':
+			data = '\r\n'
+		elif data == '\x03': #^C
+			self.transport.loseConnection()
+			return
+		
+		self.tcpSide.sendMessage(data)
+
+	def sendMessage(self, msg):
+		self.transport.write(msg)
+		
+		
+class FzTCPClient(protocol.Protocol):
+	def connectionMade(self):
+		self._init = True
+	def sendMessage(self, msg):
+		self.transport.request(msg)
+
+	def dataReceived(self, data):
+		self.sshSide.sendMessage(data)
+		
+	def loseConnection(self, reason):
+		self.transport.loseConnection()
+
+		
+class HTTPClientEndpoint(TCP4ClientEndpoint):
+    """
+    """
+	
+    def __init__(self, reactor, host, port):
+        super(HTTPClientEndpoint, self).__init__(reactor, host, port, 30, None)
+	
+    def connect(self, protocolFactory):
+        """
+        Implement L{IStreamClientEndpoint.connect} to connect via TCP.
+        """
+        try:
+            wf = _WrappingFactory(protocolFactory)
+            self.agent = Agent(self._reactor)
+            return wf._onConnection
+        except:
+            return defer.fail()
+		
 class ExampleSession(object):
     """
     This selects what to do for each type of session which is requested by the
@@ -203,7 +316,7 @@ class ExampleSession(object):
         """
         Use our protocol as shell session.
         """
-        self.protocol = FzSsh2TelnetProtocol()
+        self.protocol = FzSsh2TCPProtocol()
         # Connect the new protocol to the transport and the transport
         # to the new protocol so they can communicate in both directions.
         self.protocol.makeConnection(transport)
@@ -262,10 +375,9 @@ class ExampleFactory(factory.SSHFactory):
 portal = portal.Portal(ExampleRealm())
 passwdDB = InMemoryUsernamePasswordDatabaseDontUse()
 passwdDB.addUser('user', 'password')
-sshDB = SSHPublicKeyChecker(InMemorySSHKeyDB(
-    {'user': [keys.Key.fromFile(CLIENT_RSA_PUBLIC)]}))
+#sshDB = SSHPublicKeyChecker(InMemorySSHKeyDB({'user': [keys.Key.fromFile(CLIENT_RSA_PUBLIC)]}))
 portal.registerChecker(passwdDB)
-portal.registerChecker(sshDB)
+#portal.registerChecker(sshDB)
 ExampleFactory.portal = portal
 
 if __name__ == '__main__':

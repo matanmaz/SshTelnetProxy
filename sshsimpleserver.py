@@ -228,12 +228,9 @@ class ExampleFactory(factory.SSHFactory):
 portal = portal.Portal(ExampleRealm())
 passwdDB = InMemoryUsernamePasswordDatabaseDontUse()
 passwdDB.addUser('user', 'password')
-sshDB = SSHPublicKeyChecker(InMemorySSHKeyDB(
-    {'user': [keys.Key.fromFile(CLIENT_RSA_PUBLIC)]}))
 portal.registerChecker(passwdDB)
-portal.registerChecker(sshDB)
 ExampleFactory.portal = portal
 
 if __name__ == '__main__':
-    reactor.listenTCP(5022, ExampleFactory())
+    reactor.listenTCP(5122, ExampleFactory())
     reactor.run()

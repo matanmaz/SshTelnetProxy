@@ -15,13 +15,17 @@ from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
 from twisted.web.client import Agent
 from twisted.web.http_headers import Headers
 from twisted.internet import defer
-from twisted.internet.endpoints import _WrappingFactory
+from twisted.internet import error
 from twisted.conch.endpoints import SSHCommandClientEndpoint
 from twisted.conch.client.knownhosts import KnownHostsFile
 from zope.interface import implements
 import sys
 import os
 log.startLogging(sys.stderr)
+
+
+def tohex(x):
+    return "".join([hex(ord(c))[2:].zfill(2) for c in x])
 
 
 class PermissiveKnownHosts(object):
@@ -34,11 +38,12 @@ class FzTCP2SSHProtocol(protocol.Protocol):
     """
     """
     def connectionMade(self):
-        script_dir = os.getcwd() #<-- absolute dir the script is in
+        script_dir = os.getcwd()
         rel_path = "hostkeys"
         abs_file_path = os.path.join(script_dir, rel_path)
         knownHosts = KnownHostsFile.fromPath(abs_file_path)
-        self.point = SSHCommandClientEndpoint.newConnection(reactor, 'cmd', 'user', '127.0.0.1', port=5122, password='password', knownHosts=knownHosts)
+        self.point = SSHCommandClientEndpoint.newConnection(reactor, 'cmd', 'user', '127.0.0.1', port=5122,
+                                                            password='password', knownHosts=PermissiveKnownHosts())
         self.sshSide = FzSSHClient()
         self.sshSide.tcpSide = self
         connectProtocol(self.point, self.sshSide)
@@ -55,12 +60,22 @@ class FzTCP2SSHProtocol(protocol.Protocol):
         Just echo the received data and and if Ctrl+C is received, close the
         session.
         """
-        print '****FzTCP2SSHProtocol.dataReceived'
+        print '****FzTCP2SSHProtocol.dataReceived {}'.format(tohex(data))
+        if data == '\r':
+            data = '\r\n'
+        if data == '\x03':  # ^C
+            self.transport.loseConnection()
+            return
+        self.transport.write(data)
         self.sshSide.sendMessage(data)
 
     def sendMessage(self, msg):
-        print '****FzTCP2SSHProtocol.sendMessage'
+        print '****FzTCP2SSHProtocol.sendMessage {}'.format(tohex(msg))
         self.transport.write(msg)
+
+    def loseConnection(self, reason):
+        print '****FzTCP2SSHProtocol.loseConnection {}'.format(reason)
+        self.transport.loseConnection()
         
         
 class FzSSHClient(protocol.Protocol):
@@ -68,16 +83,20 @@ class FzSSHClient(protocol.Protocol):
         self._init = True
         
     def sendMessage(self, msg):
-        print '****FzSSHClient.sendMessage'
+        print '****FzSSHClient.sendMessage {}'.format(tohex(msg))
         self.transport.write(msg)
 
     def dataReceived(self, data):
-        print '****FzSSHClient.dataReceived'
+        print '****FzSSHClient.dataReceived {}'.format(tohex(data))
         self.tcpSide.sendMessage(data)
 
     def loseConnection(self, reason):
-        print '****FzSSHClient.loseConnection'
+        print '****FzTCPClient.loseConnection {}'.format(reason)
         self.transport.loseConnection()
+
+    def connectionLost(self, reason=error.ConnectionDone()):
+        print '****FzTCPClient.connectionLost {}'.format(reason)
+        self.tcpSide.loseConnection(reason)
 
 def main():
     """This runs the protocol on port 8000"""

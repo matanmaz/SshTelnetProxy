@@ -3,7 +3,7 @@ import optparse
 import paramiko
 import select
 import errno
-
+from async_utils import *
 
 def parse_args():
     usage = """usage: %prog listen_port dest_host dest_port
@@ -42,7 +42,13 @@ def forward_packets(server_socket, client_socket):
     sockets = [server_socket]
 
     while server_socket and client_socket:
-        rlist, wlist, _ = select.select(sockets, [], [])
+        print sockets
+        try:
+            rlist, wlist, _ = select.select(sockets, [], [])
+        except:
+            print 'error on select'
+            sockets = clean_sockets(sockets)
+            continue
 
         for sock in rlist:
             if sock == server_socket:
@@ -55,40 +61,16 @@ def forward_packets(server_socket, client_socket):
                 sockets.append(new_tcp_socket)
                 sockets.append(new_ssh_socket)
             else:
-                read_no_block(sock, lookup_other_sock(sock))
-
-
-def read_no_block(sock, other_sock):
-    buff = ''
-    while True:
-        try:
-            new_data = sock.recv(1024)
-            other_sock.send(new_data)
-        except socket.error, e:
-            if type(e) == socket.timeout or e.args[0] == errno.EWOULDBLOCK:
-                break
-            raise
-        if not new_data:
-            break
-        buff += new_data
-    return buff
-
-
-def write_no_block(sock, buff):
-    total_sent = 0
-    while total_sent<len(buff):
-        try:
-            sent = sock.send(buff[total_sent:])
-            print sock
-            print "write:" + buff[total_sent:total_sent+sent]
-            total_sent += sent
-        except socket.error, e:
-            if type(e) == socket.timeout or e.args[0] == errno.EWOULDBLOCK:
-                total_sent += sent
-                break
-            raise
-    return buff[total_sent:]
-
+                other_sock = lookup_other_sock(sock)
+                if not read_no_block(sock, lookup_other_sock(sock)):
+                    try:
+                        sockets.remove(sock)
+                        sockets.remove(other_sock)
+                        other_sock.close()
+                        sock.close()
+                    except:
+                        #sockets have already been removed due to symmetry
+                        pass
 
 
 def main():

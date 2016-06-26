@@ -8,15 +8,13 @@ Dir = Enum('Dir', 'A B')
 
 
 class Connector(object):
-    def __init__(self, listen_addr, dest_addr):
+    def __init__(self, listen_addr, dest_addr=None):
         self.lookup_map = {}
         self.direction_map = {}
         self.listen_addr = listen_addr
         self.dest_addr = dest_addr
         self.listen_addr = listen_addr[0]
         self.listen_port = listen_addr[1]
-        self.dest_host = dest_addr[0]
-        self.dest_port = dest_addr[1]
         self.A = 1 # server side
         self.B = 2 # client side
 

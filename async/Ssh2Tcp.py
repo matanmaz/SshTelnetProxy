@@ -26,8 +26,8 @@ class Ssh2TcpConnector(Connector):
         self.authenticating_sockets = []
         self.AUTH = 3
 
-    @classmethod
-    def get_server_socket(cls, dest_host, dest_port):
+    @staticmethod
+    def get_server_socket(dest_host, dest_port):
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -61,14 +61,12 @@ class Ssh2TcpConnector(Connector):
             sys.exit(1)
         return t, server
 
-    @classmethod
-    def start_ssh_session(cls, ssh_transport, ssh_server):
+    @staticmethod
+    def start_ssh_session(ssh_transport, ssh_server):
         chan = ssh_transport.accept(20)
         if chan is None:
             print('*** No channel.')
             sys.exit(1)
-        print('Authenticated!')
-
         ssh_server.event.wait(10)
         if not ssh_server.event.is_set():
             print('*** Client never asked for a shell.')
@@ -82,7 +80,6 @@ class Ssh2TcpConnector(Connector):
         return new_tcp_socket
 
     def socket_read(self, sock):
-        cls = self.__class__
         if sock == self.server_socket:
             # new connection incoming, pass to authentication
             new_client_socket, _ = self.server_socket.accept()
@@ -129,7 +126,7 @@ class Ssh2TcpConnector(Connector):
         else:
             # authenticated connections, we forward
             other_sock = self.lookup(sock)
-            buff = self.read_no_block(sock)
+            buff = Connector.read_no_block(sock)
             if buff:  # read until block successful
                 self.recv_send(sock, other_sock, buff)
             else:  # socket closed
@@ -145,6 +142,7 @@ class Ssh2TcpConnector(Connector):
     def recv_send(self, sock, other_sock, buff):
         other_sock.send(buff)
         return True
+
 
 def main():
     listen_port, dest_host, dest_port = parse_args()

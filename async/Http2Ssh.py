@@ -1,7 +1,7 @@
 from Tcp2Ssh import *
 import optparse
 from base64 import b64encode, b64decode
-import async_utils
+
 
 def parse_args():
     usage = """usage: %prog listen_port
@@ -24,11 +24,13 @@ class Http2SshConnector(Tcp2SshConnector):
             # incoming data from ssh connection
             other_sock.send(self.build_http_response(data))
 
-    def build_http_response(self, data):
+    @staticmethod
+    def build_http_response(data):
         return "200 OK\r\n\r\n" +\
                b64encode(data)
 
-    def parse_http_request(self, data):
+    @staticmethod
+    def parse_http_request(data):
         lines = data.split("\r\n")
         username = get_value(lines[1])
         password = get_value(lines[2])
@@ -39,13 +41,14 @@ class Http2SshConnector(Tcp2SshConnector):
     def accept_client(self):
         new_tcp_socket, _ = self.server_socket.accept()
         new_tcp_socket.setblocking(0)
-        buff = self.read_no_block(new_tcp_socket)
+        buff = Connector.read_no_block(new_tcp_socket)
         username, password, dest_addr, body = self.parse_http_request(buff)
         return new_tcp_socket, username, password, dest_addr
 
+
 def main():
-    #listen_port = parse_args()[0]
-    #listen_port = int(listen_port)
+    # listen_port = parse_args()[0]
+    # listen_port = int(listen_port)
     listen_port = 5080
     connector = Http2SshConnector(('127.0.0.1', listen_port))
     connector.forward_packets()

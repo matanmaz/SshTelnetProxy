@@ -16,6 +16,7 @@ class Connector(object):
         self.listen_addr = listen_addr[0]
         self.listen_port = listen_addr[1]
         self.sockets = []
+        self.server_socket = None
         self.A = 1 # server side
         self.B = 2 # client side
 
@@ -34,8 +35,8 @@ class Connector(object):
     def set_direction(self, sock, direction):
         self.direction_map[sock] = direction
 
-    @classmethod
-    def get_server_socket(cls, listen_host, listen_port):
+    @staticmethod
+    def get_server_socket(listen_host, listen_port):
         raise NotImplementedError
 
     def socket_read(self, sock):
@@ -57,7 +58,8 @@ class Connector(object):
             for sock in rlist:
                 self.socket_read(sock)
 
-    def read_no_block(self, sock):
+    @staticmethod
+    def read_no_block(sock):
         buff = ''
         while True:
             try:

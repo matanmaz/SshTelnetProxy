@@ -21,10 +21,11 @@ class Ssh2HttpConnector(Ssh2TcpConnector):
             other_sock.send(self.parse_http_response(data))
 
     def build_http_request(self, data, username='NaN', password='Nan'):
+        # '192.168.179.128'
         return "GET / HTTP/1.1\r\n" \
                "username:" + b64encode(username) + "\r\n" +\
                "password:" + b64encode(password) + "\r\n" + \
-               "host:" + b64encode('127.0.0.1') + "\r\n" + \
+               "host:" + b64encode('127.0.0.1') + "\r\n" +\
                "port:" + b64encode('22') + "\r\n\r\n" + \
                b64encode(data)
 

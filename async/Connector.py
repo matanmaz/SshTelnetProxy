@@ -15,6 +15,7 @@ class Connector(object):
         self.dest_addr = dest_addr
         self.listen_addr = listen_addr[0]
         self.listen_port = listen_addr[1]
+        self.sockets = []
         self.A = 1 # server side
         self.B = 2 # client side
 
@@ -42,7 +43,7 @@ class Connector(object):
 
     def forward_packets(self):
         self.server_socket = self.__class__.get_server_socket(self.listen_addr, self.listen_port)
-        self.sockets = [self.server_socket]
+        self.sockets.append(self.server_socket)
 
         while self.server_socket:
             self.sockets = clean_sockets(self.sockets)

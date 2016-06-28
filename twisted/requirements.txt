@@ -1,3 +1,6 @@
 pypiwin32
 twisted
 cryptography
+paramiko
+pyasn
+netfilterqueue

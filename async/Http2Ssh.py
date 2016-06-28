@@ -41,6 +41,8 @@ class Http2SshConnector(Tcp2SshConnector):
     def accept_client(self):
         new_tcp_socket, _ = self.server_socket.accept()
         new_tcp_socket.setblocking(0)
+        import time
+        time.sleep(0.1)
         buff = Connector.read_no_block(new_tcp_socket)
         username, password, dest_addr, body = self.parse_http_request(buff)
         return new_tcp_socket, username, password, dest_addr

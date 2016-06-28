@@ -32,8 +32,8 @@ from paramiko.py3compat import b, u, decodebytes
 
 # setup logging
 paramiko.util.log_to_file('demo_server.log')
-
-host_key = paramiko.RSAKey(filename=r"C:\Users\frisbee\Documents\GitHub\SshTelnetProxy\ssh-keys\ssh_host_rsa_key")
+cwd = os.path.split(os.getcwd())[0]
+host_key = paramiko.RSAKey(filename=os.path.join(cwd, "ssh-keys/ssh_host_rsa_key"))
 #host_key = paramiko.DSSKey(filename='test_dss.key')
 
 print('Read key: ' + u(hexlify(host_key.get_fingerprint())))

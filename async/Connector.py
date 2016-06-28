@@ -61,6 +61,7 @@ class Connector(object):
     @staticmethod
     def read_no_block(sock):
         buff = ''
+        new_data = ''
         while True:
             try:
                 new_data = ''
@@ -70,8 +71,8 @@ class Connector(object):
                     buff += new_data
                     return buff
                 if e.errno == errno.EBADF or \
-                                e.errno == errno.WSAECONNABORTED or \
-                                e.args[0] == errno.WSAECONNRESET or \
+                                e.errno == errno.ECONNABORTED or \
+                                e.args[0] == errno.ECONNRESET or \
                                 e.message == 'Socket is closed':
                     return False
                 print e.errno

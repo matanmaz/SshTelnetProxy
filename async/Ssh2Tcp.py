@@ -3,6 +3,7 @@ import paramiko
 from enum import Enum
 from demo_server import SimpleSSHServer
 import sys
+import os
 import traceback
 from async_utils import *
 from Connector import Connector
@@ -21,8 +22,10 @@ def parse_args():
 class Ssh2TcpConnector(Connector):
     def __init__(self, listen_addr, dest_addr):
         super(Ssh2TcpConnector, self).__init__(listen_addr, dest_addr)
+        cwd = os.path.split(os.getcwd())[0]
+        key_path = os.path.join(cwd, "ssh-keys/ssh_host_rsa_key")
         self.host_key = paramiko.RSAKey(
-            filename=r"C:\Users\frisbee\Documents\GitHub\SshTelnetProxy\ssh-keys\ssh_host_rsa_key")
+            filename=key_path)
         self.authenticating_sockets = []
         self.AUTH = 3
 

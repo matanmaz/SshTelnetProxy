@@ -19,9 +19,11 @@ class Http2SshConnector(Tcp2SshConnector):
         if self.get_direction(sock) == Dir.A:
             # Incoming HTTP request
             _, _, _, data = self.parse_http_request(data)
+            print data
             other_sock.send(data)
         elif self.get_direction(sock) == Dir.B:
             # incoming data from ssh connection
+            print data
             other_sock.send(self.build_http_response(data))
 
     @staticmethod
@@ -42,8 +44,10 @@ class Http2SshConnector(Tcp2SshConnector):
         new_tcp_socket, _ = self.server_socket.accept()
         new_tcp_socket.setblocking(0)
         import time
-        time.sleep(0.1)
-        buff = Connector.read_no_block(new_tcp_socket)
+        time.sleep(5)
+        buff = False
+        while not buff:
+            buff = Connector.read_no_block(new_tcp_socket)
         username, password, dest_addr, body = self.parse_http_request(buff)
         return new_tcp_socket, username, password, dest_addr
 
@@ -52,7 +56,7 @@ def main():
     # listen_port = parse_args()[0]
     # listen_port = int(listen_port)
     listen_port = 5080
-    connector = Http2SshConnector(('127.0.0.1', listen_port))
+    connector = Http2SshConnector(('0.0.0.0', listen_port))
     connector.forward_packets()
 
 

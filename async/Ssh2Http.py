@@ -47,8 +47,8 @@ class Ssh2HttpConnector(Ssh2TcpConnector):
 
 
 def main():
-    #listen_port, dest_host, dest_port = parse_args()
-    listen_port, dest_host, dest_port = (5022, '127.0.0.1', '5080')
+    listen_port, dest_host, dest_port = parse_args()
+    #listen_port, dest_host, dest_port = (5022, '127.0.0.1', '5080')
     dest_port = int(dest_port)
     listen_port = int(listen_port)
     connector = Ssh2HttpConnector(('0.0.0.0', listen_port), (dest_host, dest_port))

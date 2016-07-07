@@ -99,7 +99,6 @@ class FzSSHClient(protocol.Protocol):
         self.tcpSide.loseConnection(reason)
 
 def main():
-    """This runs the protocol on port 8000"""
     factory = protocol.ServerFactory()
     factory.protocol = FzTCP2SSHProtocol
     reactor.listenTCP(5080,factory)

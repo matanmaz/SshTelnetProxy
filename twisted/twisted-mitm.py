@@ -3,13 +3,16 @@ from twisted.internet.defer import Deferred, succeed, failure
 from twisted.conch import avatar, interfaces, error
 from twisted.conch.ssh import userauth, connection, keys, session, address
 from twisted.conch.ssh.factory import SSHFactory
-from twisted.conch.ssh.transport import SSHServerTransport
+from twisted.conch.ssh.transport import SSHServerTransport, SSHClientTransport
 from twisted.python import components, log
 from twisted.cred.portal import Portal, IRealm
 from zope.interface import implements, implementer
 from twisted.cred.checkers import ICredentialsChecker
 from twisted.cred import credentials
 from twisted.internet import defer, reactor
+from base64 import b64encode, b64decode
+from twisted.conch.ssh import channel, common
+import struct
 
 PRIMES = {
     2048: [(2L, 24265446577633846575813468889658944748236936003103970778683933705240497295505367703330163384138799145013634794444597785054574812547990300691956176233759905976222978197624337271745471021764463536913188381724789737057413943758936963945487690939921001501857793275011598975080236860899147312097967655185795176036941141834185923290769258512343298744828216530595090471970401506268976911907264143910697166165795972459622410274890288999065530463691697692913935201628660686422182978481412651196163930383232742547281180277809475129220288755541335335798837173315854931040199943445285443708240639743407396610839820418936574217939L)],
@@ -20,7 +23,8 @@ SERVER_RSA_PRIVATE = 'ssh-keys/ssh_host_rsa_key'
 SERVER_RSA_PUBLIC = 'ssh-keys/ssh_host_rsa_key.pub'
 
 # Path to RSA SSH keys accepted by the server.
-CLIENT_RSA_PUBLIC = 'ssh-keys/client_rsa.pub'
+CLIENT_RSA_PUBLIC = 'ssh-keys/client_rsa'
+CLIENT_RSA_PRIVATE = 'ssh-keys/client_rsa.pub'
 
 
 class ExampleAvatar(avatar.ConchUser):
@@ -130,7 +134,7 @@ class SideFactory(ClientFactory):
     protocol = SideProtocol
 
 
-class BSideFactory(ClientFactory):
+class SSH2HTTPSideFactory(ClientFactory):
 
     def __init__(self, converter, a_side, protocol):
         self.converter = converter
@@ -140,7 +144,7 @@ class BSideFactory(ClientFactory):
     def buildProtocol(self, addr):
         p = ClientFactory.buildProtocol(self, addr)
 
-        #give ASideServer his b_side
+        #give SideServer his b_side
         self.a_side.set_b_side(p)
 
         d = self.converter.get_a_side(p)
@@ -149,7 +153,7 @@ class BSideFactory(ClientFactory):
         return p
 
 
-class HTTPSideProtocol(SideProtocol):
+class HTTPClientSideProtocol(SideProtocol):
 
     def __init__(self):
         SideProtocol.__init__(self)
@@ -188,7 +192,6 @@ class HTTPSideProtocol(SideProtocol):
         return self.authenticated
 
     def sendData(self, data):
-        from base64 import b64encode
         request =  "GET / HTTP/1.1\r\n" \
                "username:" + b64encode(self.username) + "\r\n" + \
                "password:" + b64encode(self.password) + "\r\n" + \
@@ -200,7 +203,6 @@ class HTTPSideProtocol(SideProtocol):
 
     @staticmethod
     def parse_http_response(data):
-        from base64 import b64decode
         lines = data.split("\r\n")
         if lines[0] == '200 OK':
             status = 200
@@ -209,14 +211,14 @@ class HTTPSideProtocol(SideProtocol):
         return status, b64decode("".join(lines[lines.index(''):]))
 
 
-class ASideServer(SSHServerTransport):
+class SSHSideServer(SSHServerTransport):
 
     def connectionMade(self):
         # upon receiving a connection connect on towards the HTTP side
         SSHServerTransport.connectionMade(self)
         d_host = '127.0.0.1'
         d_port = 5080
-        factory = BSideFactory(self.factory, self, HTTPSideProtocol)
+        factory = SSH2HTTPSideFactory(self.factory, self, HTTPClientSideProtocol)
         reactor.connectTCP(d_host, d_port, factory)
 
     def set_b_side(self, b_side):
@@ -250,7 +252,7 @@ class BSideUsernamePassword:
 
 @implementer(ICredentialsChecker)
 class SSH2HTTPConverterFactory(SSHFactory):
-    protocol = ASideServer
+    protocol = SSHSideServer
     services = {
         'ssh-userauth': SSHConverterAuthServer,
         'ssh-connection': connection.SSHConnection
@@ -310,18 +312,20 @@ class SSH2HTTPConverterFactory(SSHFactory):
         return self.privateKeys"""
 
 
-def main():
-    import sys
-    from twisted.python import log
-    log.startLogging(sys.stdout)
+def main_ssh2http():
     portal = Portal(ExampleRealm())
     c_port = 5001
     factory = SSH2HTTPConverterFactory(c_port)
     portal.registerChecker(factory)
     SSH2HTTPConverterFactory.portal = portal
     reactor.listenTCP(c_port, factory)
-    reactor.run()
+
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    from twisted.python import log
+
+    log.startLogging(sys.stdout)
+    main_ssh2http()
+    reactor.run()

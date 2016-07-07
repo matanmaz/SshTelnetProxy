@@ -12,7 +12,7 @@ import os, getpass
 
 from twisted.python.filepath import FilePath
 from twisted.python.usage import Options
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, succeed
 from twisted.internet.protocol import Factory, Protocol
 from twisted.internet.endpoints import UNIXClientEndpoint
 from twisted.conch.ssh.keys import EncryptedKeyError, Key
@@ -24,13 +24,13 @@ class EchoOptions(Options):
     optParameters = [
         ("host", "h", "localhost",
          "hostname of the SSH server to which to connect"),
-        ("port", "p", 22,
+        ("port", "p", 5122,
          "port number of SSH server to which to connect", int),
         ("username", "u", getpass.getuser(),
          "username with which to authenticate with the SSH server"),
         ("identity", "i", None,
          "file from which to read a private key to use for authentication"),
-        ("password", None, None,
+        ("password", "p", "password",
          "password to use for authentication"),
         ("knownhosts", "k", "~/.ssh/known_hosts",
          "file containing known ssh server public key data"),
@@ -45,7 +45,7 @@ class EchoOptions(Options):
 class NoiseProtocol(Protocol):
     def connectionMade(self):
         self.finished = Deferred()
-        self.strings = ["bif", "pow", "zot"]
+        self.strings = ["pwd", "ifconfig"]
         self.sendNoise()
 
 
@@ -119,15 +119,19 @@ class ConnectionParameters(object):
 
     def endpointForCommand(self, command):
         return SSHCommandClientEndpoint.newConnection(
-            self.reactor, command, self.username, self.host,
-            port=self.port, keys=self.keys, password=self.password,
-            agentEndpoint=self.agent, knownHosts=self.knownHosts)
+            self.reactor, command, "osboxes", "localhost",
+            port=22, password="osboxes.org", knownHosts=PermissiveKnownHosts())
 
+
+class PermissiveKnownHosts(object):
+
+    def verifyHostKey(self, ui, hostname, ip, key):
+        return succeed(1)
 
 
 def main(reactor, *argv):
     parameters = ConnectionParameters.fromCommandLine(reactor, argv)
-    endpoint = parameters.endpointForCommand(b"/bin/cat")
+    endpoint = parameters.endpointForCommand("dir")
 
     factory = Factory()
     factory.protocol = NoiseProtocol

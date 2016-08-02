@@ -26,7 +26,11 @@ class Ssh2TcpConnector(Connector):
         key_path = os.path.join(cwd, "ssh-keys/ssh_host_rsa_key")
         self.host_key = paramiko.RSAKey(
             filename=key_path)
+        # list of sockets we are waiting to recv destination server info. These are not yet SSH
+        self.resolving_sockets = []
+        # list of sockets we are waiting for login. These are SSH
         self.authenticating_sockets = []
+
         self.AUTH = 3
 
     @staticmethod
@@ -74,9 +78,9 @@ class Ssh2TcpConnector(Connector):
         if not ssh_server.event.is_set():
             print('*** Client never asked for a shell.')
             sys.exit(1)
-        return chan, ssh_server.username, ssh_server.password
+        return chan
 
-    def connect_to_server(self, dest_addr, username, password):
+    def connect_to_server(self, dest_addr, ssh_side):
         new_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         new_tcp_socket.connect(dest_addr)
         new_tcp_socket.setblocking(0)
@@ -87,12 +91,18 @@ class Ssh2TcpConnector(Connector):
             # new connection incoming, pass to authentication
             new_client_socket, _ = self.server_socket.accept()
             new_client_socket.setblocking(0)
-            new_transport, new_ssh_server = self.serve_ssh_client(new_client_socket)
-            self.authenticating_sockets.append(new_client_socket)
             self.sockets.append(new_client_socket)
-            self.append_lookup(new_client_socket, new_transport)
+            self.resolving_sockets.append(new_client_socket)
+
+        elif sock in self.resolving_sockets:
+            self.resolving_sockets.remove(sock)
+            dest_addr = self.read_dest_addr(sock)
+            new_transport, new_ssh_server = self.serve_ssh_client(sock)
+            new_ssh_server.dest_addr = dest_addr
+            self.authenticating_sockets.append(sock)
+            self.append_lookup(sock, new_transport)
             self.append_lookup(new_transport, new_ssh_server)
-            self.set_direction(new_client_socket, Dir.AUTH)
+            self.set_direction(sock, Dir.AUTH)
 
         elif sock in self.authenticating_sockets:
             # authentication coming in, we check to see if it is done
@@ -115,10 +125,10 @@ class Ssh2TcpConnector(Connector):
                 self.lookup_map.pop(sock)
                 self.lookup_map.pop(ssh_transport)
                 # 4
-                new_ssh_socket, username, password = self.__class__.start_ssh_session(ssh_transport, ssh_server)
+                new_ssh_socket = self.__class__.start_ssh_session(ssh_transport, ssh_server)
                 new_ssh_socket.setblocking(0)
                 # 5
-                new_tcp_socket = self.connect_to_server(self.dest_addr, username, password)
+                new_tcp_socket = self.connect_to_server(self.dest_addr, ssh_server)
                 # 6
                 self.set_direction(new_ssh_socket, Dir.A)
                 self.set_direction(new_tcp_socket, Dir.B)
@@ -141,6 +151,12 @@ class Ssh2TcpConnector(Connector):
                 except ValueError:
                     # sockets have already been removed due to symmetry
                     pass
+
+    def read_dest_addr(self, sock):
+        data = self.read_no_block(sock)
+        # accept the destination server address
+        parts = data.split(' ')
+        return (parts[0], parts[1])
 
     def recv_send(self, sock, other_sock, buff):
         other_sock.send(buff)

@@ -22,35 +22,34 @@ class Ssh2HttpConnector(Ssh2TcpConnector):
             other_sock.send(self.parse_http_response(data))
 
     @staticmethod
-    def build_http_request(data, username='NaN', password='Nan'):
+    def build_http_request(data, server_addr='N/A', username='N/A', password='N/A'):
         # '192.168.179.128'
         return "GET / HTTP/1.1\r\n" \
                "username:" + b64encode(username) + "\r\n" +\
                "password:" + b64encode(password) + "\r\n" + \
-               "host:" + b64encode('127.0.0.1') + "\r\n" +\
-               "port:" + b64encode('22') + "\r\n" +\
+               "host:" + b64encode(server_addr[0]) + "\r\n" +\
+               "port:" + b64encode(server_addr[1]) + "\r\n" +\
                "\r\n" + \
-               b64encode(data)
+               b64encode(data) + \
+               "\r\n\r\n\r\n"
 
     @staticmethod
     def parse_http_response(data):
         lines = data.split("\r\n")
         return b64decode("".join(lines[lines.index(''):]))
 
-    def connect_to_server(self, dest_addr, username, password):
+    def connect_to_server(self, dest_addr, ssh_side):
         new_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         new_tcp_socket.connect(dest_addr)
         new_tcp_socket.setblocking(0)
-        auth_data = self.build_http_request("auth", username, password)
+        auth_data = self.build_http_request("auth", ssh_side.dest_addr, ssh_side.username, ssh_side.password)
         new_tcp_socket.sendall(auth_data)
         return new_tcp_socket
 
 
 def main():
-    listen_port, dest_host, dest_port = parse_args()
-    #listen_port, dest_host, dest_port = (5022, '127.0.0.1', '5080')
-    dest_port = int(dest_port)
-    listen_port = int(listen_port)
+    #listen_port, dest_host, dest_port = parse_args()
+    listen_port, dest_host, dest_port = (5022, '127.0.0.1', 5080)
     connector = Ssh2HttpConnector(('0.0.0.0', listen_port), (dest_host, dest_port))
     connector.forward_packets()
 

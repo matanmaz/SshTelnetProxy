@@ -163,15 +163,17 @@ class HTTPClientSideProtocol(SideProtocol):
         self.other_side = None
         self.buffer = ''
 
-    def dataReceived(self, response):
-        status, data = self.parse_http_response(response)
-        if self.authenticated is not None and status==200:
-            d, self.authenticated  = self.authenticated, None
-            d.callback(True)
-        elif self.authenticated is not None and status!=200:
-            d, self.authenticated = self.authenticated, None
-            d.callback(False)
-        self.write_other_side(data)
+    def dataReceived(self, data):
+        responses = data.split('\r\n\r\n\r\n')
+        for response in responses:
+            status, data = self.parse_http_response(response)
+            if self.authenticated is not None and status==200:
+                d, self.authenticated  = self.authenticated, None
+                d.callback(True)
+            elif self.authenticated is not None and status!=200:
+                d, self.authenticated = self.authenticated, None
+                d.callback(False)
+            self.write_other_side(data)
 
     def write_other_side(self, data):
         if self.other_side:
@@ -185,6 +187,9 @@ class HTTPClientSideProtocol(SideProtocol):
             self.write_other_side(self.buffer)
             self.buffer = ''
 
+    def set_dest_server(self, addr):
+        self.dest_server_addr = addr
+
     def login(self, username, password):
         self.username = username
         #self.password = password
@@ -195,10 +200,11 @@ class HTTPClientSideProtocol(SideProtocol):
         request =  "GET / HTTP/1.1\r\n" \
                "username:" + b64encode(self.username) + "\r\n" + \
                "password:" + b64encode(self.password) + "\r\n" + \
-               "host:" + b64encode('127.0.0.1') + "\r\n" + \
-               "port:" + b64encode('22') + "\r\n" + \
+               "host:" + b64encode(self.dest_server_addr[0]) + "\r\n" + \
+               "port:" + b64encode(self.dest_server_addr[1]) + "\r\n" + \
                "\r\n" + \
-               b64encode(data)
+               b64encode(data) + \
+               "\r\n\r\n\r\n"
         self.transport.write(request)
 
     @staticmethod
@@ -215,14 +221,33 @@ class SSHSideServer(SSHServerTransport):
 
     def connectionMade(self):
         # upon receiving a connection connect on towards the HTTP side
+        self.dest_server_addr = None
         SSHServerTransport.connectionMade(self)
+
+    def set_b_side(self, b_side):
+        self.b_side = b_side
+        self.b_side.set_dest_server(self.dest_server_addr)
+
+    def dataReceived(self, data):
+        # before calling the super method, we collect destination address
+        if self.dest_server_addr is None:
+            # accept the destination server address
+            parts = data.split(' ')
+            self.dest_server_addr = (parts[0], parts[1])
+            # remove the address from the data
+            data = data[len(parts[0]) + 1 + len(parts[1]) + 1:]
+            # only now, that we have the address, we connect the other side
+            self.connect_b()
+            # check if to keep working, if there's more data
+            if len(data) == 0:
+                return
+        SSHServerTransport.dataReceived(self, data)
+
+    def connect_b(self):
         d_host = '127.0.0.1'
         d_port = 5080
         factory = SSH2HTTPSideFactory(self.factory, self, HTTPClientSideProtocol)
         reactor.connectTCP(d_host, d_port, factory)
-
-    def set_b_side(self, b_side):
-        self.b_side = b_side
 
 
 class SSHConverterAuthServer(userauth.SSHUserAuthServer):
@@ -247,7 +272,7 @@ class BSideUsernamePassword:
 
     def checkPassword(self):
         d = self.b_side.login(self.username, self.password)
-        return d#succeed(True)#self.b_side.login(self.username, self.password)
+        return d
 
 
 @implementer(ICredentialsChecker)
@@ -314,7 +339,7 @@ class SSH2HTTPConverterFactory(SSHFactory):
 
 def main_ssh2http():
     portal = Portal(ExampleRealm())
-    c_port = 5001
+    c_port = 5022
     factory = SSH2HTTPConverterFactory(c_port)
     portal.registerChecker(factory)
     SSH2HTTPConverterFactory.portal = portal

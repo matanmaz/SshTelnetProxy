@@ -19,37 +19,37 @@ class Http2SshConnector(Tcp2SshConnector):
         if self.get_direction(sock) == Dir.A:
             # Incoming HTTP request
             _, _, _, data = self.parse_http_request(data)
-            print data
             other_sock.send(data)
         elif self.get_direction(sock) == Dir.B:
             # incoming data from ssh connection
-            print data
             other_sock.send(self.build_http_response(data))
 
     @staticmethod
     def build_http_response(data):
         return "200 OK\r\n\r\n" +\
-               b64encode(data)
+               b64encode(data) + \
+               "\r\n\r\n\r\n"
 
     @staticmethod
     def parse_http_request(data):
         lines = data.split("\r\n")
         username = get_value(lines[1])
-        password = get_value(lines[2])
-        dest_addr = (get_value(lines[3]), int(get_value(lines[4])))
+        if username != 'N/A':
+            password = get_value(lines[2])
+            dest_addr = (get_value(lines[3]), int(get_value(lines[4])))
+        else:
+            password = 'N/A'
+            dest_addr = ('N/A', 0)
         body = b64decode("".join(lines[lines.index(''):]))
         return username, password, dest_addr, body
 
-    def accept_client(self):
-        new_tcp_socket, _ = self.server_socket.accept()
-        new_tcp_socket.setblocking(0)
-        import time
-        time.sleep(5)
-        buff = False
-        while not buff:
-            buff = Connector.read_no_block(new_tcp_socket)
+    def get_metadata(self, sock):
+        buff = Connector.read_no_block(sock)
+        if not buff:
+            # we tried reading username and such but nothing was there
+            print 'error reading metadata'
         username, password, dest_addr, body = self.parse_http_request(buff)
-        return new_tcp_socket, username, password, dest_addr
+        return dest_addr, username, password
 
 
 def main():

@@ -1,0 +1,5 @@
+iptables -t nat -A PREROUTING -p tcp -d 192.168.198.133 --dport 22 -j DNAT --to 192.168.198.133:5022
+
+sudo iptables -L -vt nat
+
+iptables -A INPUT -d 192.168.198.133 -p tcp --dport 22 -j NFQUEUE --queue-num 1

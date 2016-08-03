@@ -20,7 +20,14 @@ def parse_args():
 
 
 class Ssh2TcpConnector(Connector):
+    """
+    Connects an SSH Server with a generic TCP Socket
+    """
     def __init__(self, listen_addr, dest_addr):
+        """
+        :param listen_addr: SSH server info
+        :param dest_addr: tcp client info
+        """
         super(Ssh2TcpConnector, self).__init__(listen_addr, dest_addr)
         cwd = os.path.split(os.getcwd())[0]
         key_path = os.path.join(cwd, "ssh-keys/ssh_host_rsa_key")
@@ -35,6 +42,12 @@ class Ssh2TcpConnector(Connector):
 
     @staticmethod
     def get_server_socket(dest_host, dest_port):
+        """
+        creates and sets up the ssh server socket
+        :param dest_host: ssh server ip. probably 0.0.0.0
+        :param dest_port: ssh server port
+        :return: the server socket
+        """
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -52,6 +65,15 @@ class Ssh2TcpConnector(Connector):
         return sock
 
     def serve_ssh_client(self, ssh_client_socket):
+        """
+        Once a new client has connected to the server, and after it has sent any metadata, we begin
+        running the ssh protocol on the socket.
+        The ssh library paramiko has two objects for an ssh server connection:
+        1. ServerInterface, called SimpleSSHServer. Keeps the state of the connection
+        2. Transport, object for passing the data back and forth, and encrypts for us
+        :param ssh_client_socket:
+        :return: (the transport and the ssh server objects running on the client socket)
+        """
         t = paramiko.Transport(ssh_client_socket)
         try:
             t.load_server_moduli()
@@ -70,6 +92,12 @@ class Ssh2TcpConnector(Connector):
 
     @staticmethod
     def start_ssh_session(ssh_transport, ssh_server):
+        """
+
+        :param ssh_transport:
+        :param ssh_server:
+        :return:
+        """
         chan = ssh_transport.accept(20)
         if chan is None:
             print('*** No channel.')

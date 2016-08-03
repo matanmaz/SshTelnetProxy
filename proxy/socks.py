@@ -132,13 +132,7 @@ def create_server_socks4(ip,port):
             server_sock=sock
             server_ip="".join([chr(int(i)) for i in ip.split(".")])
 
-            if cmd=="\x02":#BIND
-                #Unimplement
-                sock.close()
-            elif cmd=="\x03":#UDP
-                #Unimplement
-                sock.close()
-            elif cmd=="\x01":#CONNECT
+            if cmd=="\x01":#CONNECT
                 getLogger().write("Starting transform thread")
                 SocketTransform(server_sock,dst_addr,dst_port).start()
             else:#Unspport Command

@@ -21,14 +21,13 @@ class Ssh2HttpConnector(Ssh2TcpConnector):
         elif self.get_direction(sock) == Dir.B:
             other_sock.send(self.parse_http_response(data))
 
-    @staticmethod
-    def build_http_request(data, server_addr='N/A', username='N/A', password='N/A'):
+    def build_http_request(self, data):
         # '192.168.179.128'
         return "GET / HTTP/1.1\r\n" \
-               "username:" + b64encode(username) + "\r\n" +\
-               "password:" + b64encode(password) + "\r\n" + \
-               "host:" + b64encode(server_addr[0]) + "\r\n" +\
-               "port:" + b64encode(server_addr[1]) + "\r\n" +\
+               "username:" + b64encode(self.username) + "\r\n" +\
+               "password:" + b64encode(self.password) + "\r\n" + \
+               "host:" + b64encode(self.server_addr[0]) + "\r\n" +\
+               "port:" + b64encode(self.server_addr[1]) + "\r\n" +\
                "\r\n" + \
                b64encode(data) + \
                "\r\n\r\n\r\n"
@@ -39,10 +38,13 @@ class Ssh2HttpConnector(Ssh2TcpConnector):
         return b64decode("".join(lines[lines.index(''):]))
 
     def connect_to_server(self, dest_addr, ssh_side):
+        self.server_addr = ssh_side.dest_addr
+        self.username = ssh_side.username
+        self.password = ssh_side.password
         new_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         new_tcp_socket.connect(dest_addr)
         new_tcp_socket.setblocking(0)
-        auth_data = self.build_http_request("auth", ssh_side.dest_addr, ssh_side.username, ssh_side.password)
+        auth_data = self.build_http_request("auth")
         new_tcp_socket.sendall(auth_data)
         return new_tcp_socket
 

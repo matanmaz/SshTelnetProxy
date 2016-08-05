@@ -50,19 +50,25 @@ class Tcp2SshConnector(Connector):
             new_tcp_socket = self.accept_client()
             self.sockets.append(new_tcp_socket)
             self.set_direction(new_tcp_socket, Dir.A)
+            self.buffers[new_tcp_socket] = ''
             # not yet authenticated
         else:
             other_sock = self.lookup(sock)
             if other_sock is None:
-                # recv authentication info and connect to ssh
-                new_tcp_socket = sock
-                dest_addr, username, password = self.get_metadata(sock)
-                new_ssh_socket, new_ssh_client = self.get_ssh_socket(dest_addr, username, password)
-                self.clients.append(new_ssh_client)
-                self.lookup_map[new_tcp_socket] = new_ssh_socket
-                self.lookup_map[new_ssh_socket] = new_tcp_socket
-                self.sockets.append(new_ssh_socket)
-                self.set_direction(new_ssh_socket, Dir.B)
+                try:
+                    # recv authentication info and connect to ssh
+                    new_tcp_socket = sock
+                    dest_addr, username, password = self.get_metadata(sock)
+                    new_ssh_socket, new_ssh_client = self.get_ssh_socket(dest_addr, username, password)
+                    self.clients.append(new_ssh_client)
+                    self.lookup_map[new_tcp_socket] = new_ssh_socket
+                    self.lookup_map[new_ssh_socket] = new_tcp_socket
+                    self.sockets.append(new_ssh_socket)
+                    self.set_direction(new_ssh_socket, Dir.B)
+                    self.buffers[new_ssh_socket] = ''
+                except Exception, e:
+                    print e
+                    sock.close()
             else:
                 # already authenticated
                 buff = Connector.read_no_block(sock)

@@ -19,6 +19,7 @@ class Connector(object):
         self.server_socket = None
         self.A = 1 # server side
         self.B = 2 # client side
+        self.buffers = {}
 
     def lookup(self, sock):
         if self.lookup_map.has_key(sock):
@@ -42,14 +43,31 @@ class Connector(object):
     def socket_read(self, sock):
         raise NotImplementedError
 
+    def socket_write(self, sock):
+        try:
+            to_write = self.buffers[sock]
+            if len(to_write) == 0:
+                return
+            sent = sock.send(to_write)
+            self.buffers[sock] = to_write[sent:]
+            if sent == 0:
+                raise RuntimeError("socket connection broken")
+        except Exception, e:
+            print e
+            pass
+
+    def socket_send(self, sock, data):
+        self.buffers[sock] += data
+
     def forward_packets(self):
         self.server_socket = self.__class__.get_server_socket(self.listen_addr, self.listen_port)
         self.sockets.append(self.server_socket)
+        self.buffers[self.server_socket] = ''
 
         while self.server_socket:
             self.sockets = clean_sockets(self.sockets)
             try:
-                rlist, _, _ = select.select(self.sockets, [], [])
+                rlist, wlist, _ = select.select(self.sockets, self.sockets, [])
             except:
                 print 'error on select'
                 self.sockets = clean_sockets(self.sockets)
@@ -57,6 +75,11 @@ class Connector(object):
 
             for sock in rlist:
                 self.socket_read(sock)
+
+            for sock in wlist:
+                if sock == self.server_socket:
+                    continue
+                self.socket_write(sock)
 
     @staticmethod
     def read_no_block(sock):
@@ -84,5 +107,4 @@ class Connector(object):
         return buff
 
     def recv_send(self, sock, other_sock, data):
-        other_sock.sendall(data)
-        return data
+        self.buffers[other_sock] += data

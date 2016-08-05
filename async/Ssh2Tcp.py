@@ -120,17 +120,22 @@ class Ssh2TcpConnector(Connector):
             new_client_socket, _ = self.server_socket.accept()
             new_client_socket.setblocking(0)
             self.sockets.append(new_client_socket)
+            self.buffers[new_client_socket] = ''
             self.resolving_sockets.append(new_client_socket)
 
         elif sock in self.resolving_sockets:
-            self.resolving_sockets.remove(sock)
-            dest_addr = self.read_dest_addr(sock)
-            new_transport, new_ssh_server = self.serve_ssh_client(sock)
-            new_ssh_server.dest_addr = dest_addr
-            self.authenticating_sockets.append(sock)
-            self.append_lookup(sock, new_transport)
-            self.append_lookup(new_transport, new_ssh_server)
-            self.set_direction(sock, Dir.AUTH)
+            try:
+                self.resolving_sockets.remove(sock)
+                dest_addr = self.read_dest_addr(sock)
+                new_transport, new_ssh_server = self.serve_ssh_client(sock)
+                new_ssh_server.dest_addr = dest_addr
+                self.authenticating_sockets.append(sock)
+                self.append_lookup(sock, new_transport)
+                self.append_lookup(new_transport, new_ssh_server)
+                self.set_direction(sock, Dir.AUTH)
+            except Exception, e:
+                print e
+                sock.close()
 
         elif sock in self.authenticating_sockets:
             # authentication coming in, we check to see if it is done
@@ -164,21 +169,28 @@ class Ssh2TcpConnector(Connector):
                 self.append_lookup(new_ssh_socket, new_tcp_socket)
                 self.sockets.append(new_tcp_socket)
                 self.sockets.append(new_ssh_socket)
+                self.buffers[new_ssh_socket] = ''
+                self.buffers[new_tcp_socket] = ''
         else:
             # authenticated connections, we forward
-            other_sock = self.lookup(sock)
-            buff = Connector.read_no_block(sock)
-            if buff:  # read until block successful
-                self.recv_send(sock, other_sock, buff)
-            else:  # socket closed
-                try:
-                    self.sockets.remove(sock)
-                    self.sockets.remove(other_sock)
-                    other_sock.close()
-                    sock.close()
-                except ValueError:
-                    # sockets have already been removed due to symmetry
-                    pass
+            try:
+                other_sock = self.lookup(sock)
+                buff = Connector.read_no_block(sock)
+                if buff:  # read until block successful
+                    self.recv_send(sock, other_sock, buff)
+                else:  # socket closed
+                    try:
+                        self.sockets.remove(sock)
+                        self.sockets.remove(other_sock)
+                        other_sock.close()
+                        sock.close()
+                    except ValueError:
+                        # sockets have already been removed due to symmetry
+                        pass
+            except Exception, e:
+                print e
+                sock.close()
+                other_sock.close()
 
     def read_dest_addr(self, sock):
         data = self.read_no_block(sock)

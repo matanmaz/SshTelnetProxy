@@ -59,7 +59,7 @@ class Http2SshConnector(Tcp2SshConnector):
             other_sock.send(data)
         elif self.get_direction(sock) == Dir.B:
             # incoming data from ssh connection
-            other_sock.send(self.build_http_response(data))
+            self.socket_send(other_sock, self.build_http_response(data))
 
     @staticmethod
     def build_http_response(data, status="200 OK"):

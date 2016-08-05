@@ -17,9 +17,11 @@ class Ssh2HttpConnector(Ssh2TcpConnector):
 
     def recv_send(self, sock, other_sock, data):
         if self.get_direction(sock) == Dir.A:
-            other_sock.send(self.build_http_request(data))
+            self.socket_send(other_sock, self.build_http_request(data))
         elif self.get_direction(sock) == Dir.B:
-            other_sock.send(self.parse_http_response(data))
+            responses = data.split('\r\n\r\n\r\n')
+            for response in responses:
+                self.socket_send(other_sock, self.parse_http_response(response))
 
     def build_http_request(self, data):
         # '192.168.179.128'
@@ -34,8 +36,12 @@ class Ssh2HttpConnector(Ssh2TcpConnector):
 
     @staticmethod
     def parse_http_response(data):
-        lines = data.split("\r\n")
-        return b64decode("".join(lines[lines.index(''):]))
+        try:
+            lines = data.split("\r\n")
+            return b64decode("".join(lines[lines.index(''):]))
+        except TypeError, t:
+            print t
+            raise
 
     def connect_to_server(self, dest_addr, ssh_side):
         self.server_addr = ssh_side.dest_addr

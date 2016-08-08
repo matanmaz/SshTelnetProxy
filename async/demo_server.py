@@ -63,6 +63,8 @@ class SimpleSSHServer (paramiko.ServerInterface):
         return paramiko.AUTH_SUCCESSFUL
 
     def check_auth_publickey(self, username, key):
+        self.username = username
+        self.key = key
         return paramiko.AUTH_SUCCESSFUL
     
     def check_auth_gssapi_with_mic(self, username,

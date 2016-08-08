@@ -18,15 +18,21 @@ class Tcp2SshConnector(Connector):
 
     @staticmethod
     def get_ssh_socket(dest_addr, username, password):
-        ssh_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        ssh_socket.connect(dest_addr)
-        ssh_socket.setblocking(0)
-        ssh_client = paramiko.SSHClient()
-        # TODO change autoadd to appropriate policy
-        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh_client.connect(None, sock=ssh_socket, username=username, password=password)
-        ssh_channel = ssh_client.invoke_shell()
-        ssh_channel.setblocking(0)
+        ssh_client = None
+        try:
+            ssh_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            ssh_socket.connect(dest_addr)
+            ssh_socket.setblocking(0)
+            ssh_client = paramiko.SSHClient()
+            # TODO change autoadd to appropriate policy
+            ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh_client.connect(None, sock=ssh_socket, username=username, password=password)
+            ssh_channel = ssh_client.invoke_shell()
+            ssh_channel.setblocking(0)
+        except paramiko.AuthenticationException:
+            if ssh_client:
+                ssh_client.close()
+            raise
         return ssh_channel, ssh_client
 
     @staticmethod

@@ -116,7 +116,7 @@ class Ssh2TcpConnector(Connector):
 
     def socket_read(self, sock):
         if sock == self.server_socket:
-            # new connection incoming, pass to authentication
+            # new connection incoming
             new_client_socket, _ = self.server_socket.accept()
             new_client_socket.setblocking(0)
             self.sockets.append(new_client_socket)
@@ -124,6 +124,7 @@ class Ssh2TcpConnector(Connector):
             self.resolving_sockets.append(new_client_socket)
 
         elif sock in self.resolving_sockets:
+            # resolving are sockets which have yet to give connection metadata
             try:
                 self.resolving_sockets.remove(sock)
                 dest_addr = self.read_dest_addr(sock)

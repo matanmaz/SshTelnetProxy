@@ -1,0 +1,9 @@
+Proper error handling:
+SSH Negotiation failure
+authentication failure
+
+Allow multiple auth attempts
+
+Certificate authentication
+
+Make the Synchronous ssh auth async
